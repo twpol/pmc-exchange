@@ -37,18 +37,17 @@ namespace pmc.exchange
             service.Credentials = new WebCredentials(config["username"], config["password"]);
             service.AutodiscoverUrl(config["email"], redirectionUri => new Uri(redirectionUri).Scheme == "https");
 
-            var output = new JsonArray();
-            foreach (var message in GetFlaggedMessages(service).ToEnumerable())
+            GetFlaggedMessages(service).ForEachAsync(message =>
             {
-                output.Add(new JsonObject(
+                var item = new JsonObject(
                     new KeyValuePair<string, JsonValue>("source", "pmc-exchange"),
                     new KeyValuePair<string, JsonValue>("type", "email"),
                     new KeyValuePair<string, JsonValue>("rank", 0),
                     new KeyValuePair<string, JsonValue>("datetime", message.DateTimeReceived.ToString("O")),
                     new KeyValuePair<string, JsonValue>("subject", message.Subject)
-                ));
-            }
-            output.Save(Console.Out);
+                );
+                Console.WriteLine(item.ToString());
+            }).Wait();
 
             return 0;
         }
@@ -101,6 +100,8 @@ namespace pmc.exchange
                         }
                         flaggedView.Offset = flagged.NextPageOffset ?? 0;
                     } while (flagged.MoreAvailable);
+
+                    observer.OnCompleted();
                 }
             );
         }
