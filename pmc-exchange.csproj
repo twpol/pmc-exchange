@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="CommandLineParser" Version="2.2.1"/>
+    <PackageReference Include="Microsoft.Exchange.WebServices.NETStandard" Version="1.1.2"/>
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="2.0.1"/>
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="2.0.1"/>
   </ItemGroup>

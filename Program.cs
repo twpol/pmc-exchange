@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using CommandLine;
+using Microsoft.Exchange.WebServices.Data;
 using Microsoft.Extensions.Configuration;
 
 namespace pmc.exchange
@@ -27,8 +28,11 @@ namespace pmc.exchange
                 );
         }
 
-        static int Run(IConfigurationRoot configurationRoot, Options options)
+        static int Run(IConfigurationRoot config, Options options)
         {
+            var service = new ExchangeService(ExchangeVersion.Exchange2016);
+            service.Credentials = new WebCredentials(config["username"], config["password"]);
+            service.AutodiscoverUrl(config["email"], redirectionUri => new Uri(redirectionUri).Scheme == "https");
             return 0;
         }
     }
