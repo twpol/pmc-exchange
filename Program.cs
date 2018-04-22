@@ -42,6 +42,7 @@ namespace pmc.exchange
                 var item = new JsonObject(
                     new KeyValuePair<string, JsonValue>("source", "pmc-exchange"),
                     new KeyValuePair<string, JsonValue>("type", "email"),
+                    new KeyValuePair<string, JsonValue>("completed", message.Flag.FlagStatus == ItemFlagStatus.Complete),
                     new KeyValuePair<string, JsonValue>("rank", 0),
                     new KeyValuePair<string, JsonValue>("datetime", message.DateTimeReceived.ToString("O")),
                     new KeyValuePair<string, JsonValue>("subject", message.Subject)
