@@ -1,2 +1,3 @@
-# pmc-exchange
-A personal mission control plug-in for Exchange (Office 365 and Outlook.com)
+# Personal Mission Control (PMC) plug-in for Exchange
+
+A Personal Mission Control (PMC) plug-in for incorporating Exchange data (Office 365 and Outlook.com).
