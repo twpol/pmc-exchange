@@ -9,6 +9,6 @@
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="3.0.0"/>
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="3.0.0"/>
     <PackageReference Include="System.Json" Version="4.6.0"/>
-    <PackageReference Include="System.Reactive.Linq" Version="4.1.6"/>
+    <PackageReference Include="System.Reactive.Linq" Version="4.2.0"/>
   </ItemGroup>
 </Project>
