@@ -37,38 +37,100 @@ namespace pmc.exchange
             service.Credentials = new WebCredentials(config["username"], config["password"]);
             service.AutodiscoverUrl(config["email"], redirectionUri => new Uri(redirectionUri).Scheme == "https");
 
-            GetFlaggedMessages(service).ForEachAsync(message =>
-            {
-                var item = new JsonObject(
-                    new KeyValuePair<string, JsonValue>("source", "pmc-exchange"),
-                    new KeyValuePair<string, JsonValue>("type", "email"),
-                    new KeyValuePair<string, JsonValue>("completed", message.Flag.FlagStatus == ItemFlagStatus.Complete),
-                    new KeyValuePair<string, JsonValue>("rank", 0),
-                    new KeyValuePair<string, JsonValue>("datetime", message.DateTimeReceived.ToString("O")),
-                    new KeyValuePair<string, JsonValue>("subject", message.Subject)
-                );
-                Console.WriteLine(item.ToString());
-            }).Wait();
+            GetUnreadMessages(service).ForEachAsync(message => WriteEmailLine(message)).Wait();
+            GetFlaggedMessages(service).ForEachAsync(message => WriteEmailLine(message)).Wait();
 
             return 0;
         }
 
-        static IObservable<Item> GetFlaggedMessages(ExchangeService service)
+        static HashSet<string> EmailsSeen = new HashSet<string>();
+
+        static void WriteEmailLine(EmailMessage message)
         {
-            return Observable.Create<Item>(
+            if (EmailsSeen.Contains(message.Id.UniqueId))
+                return;
+            Console.WriteLine(EmailToJson(message).ToString());
+            EmailsSeen.Add(message.Id.UniqueId);
+        }
+
+        static JsonObject EmailToJson(EmailMessage message)
+        {
+            return new JsonObject(
+                new KeyValuePair<string, JsonValue>("source", "pmc-exchange"),
+                new KeyValuePair<string, JsonValue>("type", "email"),
+                new KeyValuePair<string, JsonValue>("id", message.Id.UniqueId),
+                new KeyValuePair<string, JsonValue>("datetime", message.DateTimeReceived.ToString("O")),
+                new KeyValuePair<string, JsonValue>("subject", message.Subject),
+                new KeyValuePair<string, JsonValue>("flagged", message.Flag.FlagStatus != ItemFlagStatus.NotFlagged),
+                new KeyValuePair<string, JsonValue>("completed", message.Flag.FlagStatus == ItemFlagStatus.Complete),
+                new KeyValuePair<string, JsonValue>("read", message.IsRead)
+            );
+        }
+
+        static IObservable<EmailMessage> GetUnreadMessages(ExchangeService service)
+        {
+            return Observable.Create<EmailMessage>(
                 async observer =>
                 {
-                    var PidTagFolderType = new ExtendedPropertyDefinition(0x3601, MapiPropertyType.Integer);
+                    // Find "Inbox" and all child folders.
+                    var folders = new List<Folder>();
+                    folders.Add(await Folder.Bind(service, WellKnownFolderName.Inbox));
+                    var folderView = new FolderView(10)
+                    {
+                        Traversal = FolderTraversal.Deep,
+                    };
+                    {
+                        FindFoldersResults folder;
+                        do
+                        {
+                            folder = await folders[0].FindFolders(folderView);
+                            folders.AddRange(folder);
+                            folderView.Offset = folder.NextPageOffset ?? 0;
+                        } while (folder.MoreAvailable);
+                    }
+
+                    // Find all items that are unread.
+                    var unreadFilter = new SearchFilter.SearchFilterCollection(LogicalOperator.And)
+                    {
+                        new SearchFilter.IsEqualTo(EmailMessageSchema.IsRead, false),
+                        new SearchFilter.IsEqualTo(ItemSchema.ItemClass, "IPM.Note"),
+                    };
+                    var unreadView = new ItemView(1000)
+                    {
+                        PropertySet = new PropertySet(BasePropertySet.IdOnly, ItemSchema.DateTimeReceived, ItemSchema.Subject, ItemSchema.Flag, EmailMessageSchema.IsRead),
+                    };
+
+                    foreach (var folder in folders)
+                    {
+                        FindItemsResults<Item> unread;
+                        do
+                        {
+                            unread = await folder.FindItems(unreadFilter, unreadView);
+                            foreach (var item in unread.Items)
+                            {
+                                observer.OnNext(item as EmailMessage);
+                            }
+                            unreadView.Offset = unread.NextPageOffset ?? 0;
+                        } while (unread.MoreAvailable);
+                    }
+
+                    observer.OnCompleted();
+                }
+            );
+        }
+
+        static IObservable<EmailMessage> GetFlaggedMessages(ExchangeService service)
+        {
+            return Observable.Create<EmailMessage>(
+                async observer =>
+                {
+                    // ItemSchema.Flag does not seem to be searchable
                     var PidTagFlagStatus = new ExtendedPropertyDefinition(0x1090, MapiPropertyType.Integer);
 
                     // Find Outlook's own search folder "AllItems", which includes all folders in the account.
                     var allItemsView = new FolderView(10);
                     var allItems = await service.FindFolders(WellKnownFolderName.Root,
-                        new SearchFilter.SearchFilterCollection(LogicalOperator.And)
-                        {
-                            new SearchFilter.IsEqualTo(PidTagFolderType, "2"),
-                            new SearchFilter.IsEqualTo(FolderSchema.DisplayName, "AllItems"),
-                        },
+                        new SearchFilter.IsEqualTo(FolderSchema.DisplayName, "AllItems"),
                         allItemsView);
 
                     if (allItems.Folders.Count != 1)
@@ -88,7 +150,7 @@ namespace pmc.exchange
                     };
                     var flaggedView = new ItemView(1000)
                     {
-                        PropertySet = new PropertySet(BasePropertySet.IdOnly, ItemSchema.DateTimeReceived, ItemSchema.Flag, ItemSchema.Subject),
+                        PropertySet = new PropertySet(BasePropertySet.IdOnly, ItemSchema.DateTimeReceived, ItemSchema.Subject, ItemSchema.Flag, EmailMessageSchema.IsRead),
                     };
 
                     FindItemsResults<Item> flagged;
@@ -97,7 +159,7 @@ namespace pmc.exchange
                         flagged = await allItems.Folders[0].FindItems(flaggedFilter, flaggedView);
                         foreach (var item in flagged.Items)
                         {
-                            observer.OnNext(item);
+                            observer.OnNext(item as EmailMessage);
                         }
                         flaggedView.Offset = flagged.NextPageOffset ?? 0;
                     } while (flagged.MoreAvailable);
