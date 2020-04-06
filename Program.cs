@@ -76,7 +76,7 @@ namespace pmc.exchange
                         throw new MissingMemberException("AllItems");
                     }
 
-                    // Find the Funk folder.
+                    // Find the Junk folder.
                     var junkFolder = await Folder.Bind(service, WellKnownFolderName.JunkEmail);
 
                     // Find all items that are flagged and not in the Junk folder.
